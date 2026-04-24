@@ -1,12 +1,12 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "KUSTOM | FPS One Tap Rage",
-    LoadingTitle = "Kustom Injection",
-    LoadingSubtitle = "by Kustom Team",
+    Name = "Silent Runners | FPS One Tap Rage",
+    LoadingTitle = "Silent Runners Injection",
+    LoadingSubtitle = "by Silent Runners Team",
     ConfigurationSaving = {
        Enabled = true,
-       FolderName = "KustomConfigs",
+       FolderName = "SilentRunnersConfigs",
        FileName = "FPSOneTapRage"
     },
     Discord = {
@@ -655,7 +655,7 @@ ESPTab:CreateToggle({
 })
 
 ESPTab:CreateParagraph({
-    Title = "KUSTOM ESP",
+    Title = "Silent Runners ESP",
     Content = "Boxes: Red = enemy, Green = ally\nName: Player name\nDistance: meters\nHP Bar: Green >50%, Yellow >25%, Red <25%\nChams: See enemies through walls\nTracers: Lines to enemies"
 })
 
@@ -703,8 +703,8 @@ MiscTab:CreateToggle({
 })
 
 MiscTab:CreateParagraph({
-    Title = "KUSTOM MISC",
+    Title = "Silent Runners MISC",
     Content = "Speed Hack: Anti-cheat bypass\nSpeed: 20 to 200 studs/s\nNoClip: Walk through walls\nGod Mode: Infinite health + no collision"
 })
 
-print("KUSTOM Rage Script: FPS One Tap - Loaded. Kustom 26.09.2025")
+print("Silent Runners Rage Script: FPS One Tap - Loaded. Silent Runners Team 26.09.2025")
