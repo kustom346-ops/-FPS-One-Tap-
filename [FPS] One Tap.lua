@@ -17,7 +17,8 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
-local AimbotTab = Window:CreateTab("🎯 Rage", 4483362458)
+local RageTab = Window:CreateTab("🎯 Rage", 4483362458)
+local LegitTab = Window:CreateTab("🔫 Legit Bot", 4483362458)
 local ESPTab = Window:CreateTab("👁️ ESP", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ MISC", 4483362458)
 
@@ -27,12 +28,22 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
 
-local aimbotEnabled = false
-local autoShotEnabled = false
-local wallCheckEnabled = true
-local aimPart = "Head"
-local aimbotFOV = 360
+local rageEnabled = false
+local rageAutoShot = false
+local rageWallCheck = true
+local rageAimPart = "Head"
+local rageFOV = 360
+
+local legitEnabled = false
+local legitAutoShot = false
+local legitAimPart = "Head"
+local legitFOV = 90
+local legitSmoothing = 5
+local showFOV = false
+local fovCircle = nil
+local fovOutline = nil
 
 local espEnabled = false
 local espBoxes = false
@@ -43,14 +54,12 @@ local espChams = false
 local espTracers = false
 local espPlayers = {}
 
-local speedHackEnabled = false
-local speedValue = 50
 local noclipEnabled = false
 local noclipConnection = nil
-local speedHackConnection = nil
+local bunnyHopEnabled = false
+local bhopConnection = nil
 
 local function isTargetVisible(targetCharacter, targetPart)
-    if not wallCheckEnabled then return true end
     if not targetCharacter or not targetPart then return false end
     
     local cameraPos = Camera.CFrame.Position
@@ -82,7 +91,7 @@ local function isTargetVisible(targetCharacter, targetPart)
     return false
 end
 
-local function getNearestEnemy()
+local function getNearestEnemy(aimPart, fov, checkWall, useFOV)
     local nearestEnemy = nil
     local nearestDistance = math.huge
 
@@ -102,14 +111,16 @@ local function getNearestEnemy()
         local screenPosition, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
         if not onScreen then continue end
 
-        local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-        local screenPos2D = Vector2.new(screenPosition.X, screenPosition.Y)
-        local distanceFromCenter = (screenPos2D - screenCenter).Magnitude
-        local maxFOVDistance = (Camera.ViewportSize.Y / 2) * (aimbotFOV / 90)
+        if useFOV and fov < 360 then
+            local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+            local screenPos2D = Vector2.new(screenPosition.X, screenPosition.Y)
+            local distanceFromCenter = (screenPos2D - screenCenter).Magnitude
+            local maxFOVDistance = (Camera.ViewportSize.Y / 2) * (fov / 90)
 
-        if distanceFromCenter > maxFOVDistance then continue end
+            if distanceFromCenter > maxFOVDistance then continue end
+        end
 
-        if not isTargetVisible(character, targetPart) then continue end
+        if checkWall and not isTargetVisible(character, targetPart) then continue end
 
         local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
 
@@ -119,7 +130,8 @@ local function getNearestEnemy()
                 player = player,
                 character = character,
                 targetPart = targetPart,
-                distance = distance
+                distance = distance,
+                screenPosition = screenPosition
             }
         end
     end
@@ -132,17 +144,66 @@ local function fireShot()
     VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
 end
 
+local function drawFOVCircle()
+    if fovCircle then fovCircle:Remove() fovCircle = nil end
+    if fovOutline then fovOutline:Remove() fovOutline = nil end
+    
+    if not showFOV then return end
+    
+    local centerX = Camera.ViewportSize.X / 2
+    local centerY = Camera.ViewportSize.Y / 2
+    local radius = (Camera.ViewportSize.Y / 2) * (legitFOV / 90)
+    
+    fovOutline = Drawing.new("Circle")
+    fovOutline.Visible = true
+    fovOutline.Thickness = 2
+    fovOutline.Color = Color3.new(0, 0, 0)
+    fovOutline.Transparency = 1
+    fovOutline.Filled = false
+    fovOutline.NumSides = 100
+    fovOutline.Radius = radius
+    fovOutline.Position = Vector2.new(centerX, centerY)
+    fovOutline.ZIndex = 2
+    
+    fovCircle = Drawing.new("Circle")
+    fovCircle.Visible = true
+    fovCircle.Thickness = 1
+    fovCircle.Color = Color3.new(1, 1, 1)
+    fovCircle.Transparency = 0.8
+    fovCircle.Filled = true
+    fovCircle.NumSides = 100
+    fovCircle.Radius = radius
+    fovCircle.Position = Vector2.new(centerX, centerY)
+    fovCircle.ZIndex = 1
+end
+
 RunService.RenderStepped:Connect(function()
-    if not aimbotEnabled then return end
-
-    local enemy = getNearestEnemy()
-    if not enemy then return end
-
-    Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.targetPart.Position)
-
-    if autoShotEnabled then
-        fireShot()
+    if rageEnabled then
+        local useFOV = rageFOV < 360
+        local enemy = getNearestEnemy(rageAimPart, rageFOV, rageWallCheck, useFOV)
+        if enemy then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.targetPart.Position)
+            if rageAutoShot then fireShot() end
+        end
+    elseif legitEnabled then
+        local useFOV = legitFOV < 360
+        local enemy = getNearestEnemy(legitAimPart, legitFOV, true, useFOV)
+        if enemy then
+            local targetPos = enemy.targetPart.Position
+            local smoothFactor = math.min(legitSmoothing / 10, 1)
+            local newCFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), smoothFactor)
+            Camera.CFrame = newCFrame
+            
+            if legitAutoShot then
+                local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                local screenPos2D = Vector2.new(enemy.screenPosition.X, enemy.screenPosition.Y)
+                local distanceFromCenter = (screenPos2D - screenCenter).Magnitude
+                if distanceFromCenter < 10 then fireShot() end
+            end
+        end
     end
+    
+    drawFOVCircle()
 end)
 
 local function createESPForPlayer(player)
@@ -202,9 +263,7 @@ local function createESPForPlayer(player)
             espData.hpBackground:Remove()
             espData.tracer:Remove()
             if espData.chams then
-                for _, part in ipairs(espData.chams) do
-                    part:Destroy()
-                end
+                for _, part in ipairs(espData.chams) do part:Destroy() end
             end
             connection:Disconnect()
             espPlayers[player] = nil
@@ -220,9 +279,7 @@ local function createESPForPlayer(player)
             espData.hpBackground.Visible = false
             espData.tracer.Visible = false
             if espData.chams then
-                for _, part in ipairs(espData.chams) do
-                    part:Destroy()
-                end
+                for _, part in ipairs(espData.chams) do part:Destroy() end
                 espData.chams = nil
             end
             return
@@ -230,7 +287,6 @@ local function createESPForPlayer(player)
 
         local rootPart = character:FindFirstChild("HumanoidRootPart")
         local humanoid = character:FindFirstChild("Humanoid")
-        local head = character:FindFirstChild("Head")
 
         if not rootPart or not humanoid then
             espData.box.Visible = false
@@ -240,9 +296,7 @@ local function createESPForPlayer(player)
             espData.hpBackground.Visible = false
             espData.tracer.Visible = false
             if espData.chams then
-                for _, part in ipairs(espData.chams) do
-                    part:Destroy()
-                end
+                for _, part in ipairs(espData.chams) do part:Destroy() end
                 espData.chams = nil
             end
             return
@@ -270,9 +324,7 @@ local function createESPForPlayer(player)
                 end
             else
                 if espData.chams then
-                    for _, part in ipairs(espData.chams) do
-                        part:Destroy()
-                    end
+                    for _, part in ipairs(espData.chams) do part:Destroy() end
                     espData.chams = nil
                 end
             end
@@ -370,9 +422,7 @@ local function createESPForPlayer(player)
             espData.hpBackground.Visible = false
             espData.tracer.Visible = false
             if espData.chams then
-                for _, part in ipairs(espData.chams) do
-                    part:Destroy()
-                end
+                for _, part in ipairs(espData.chams) do part:Destroy() end
                 espData.chams = nil
             end
         end
@@ -388,9 +438,7 @@ local function clearAllESP()
         espData.hpBackground:Remove()
         espData.tracer:Remove()
         if espData.chams then
-            for _, part in ipairs(espData.chams) do
-                part:Destroy()
-            end
+            for _, part in ipairs(espData.chams) do part:Destroy() end
         end
     end
     espPlayers = {}
@@ -413,34 +461,10 @@ Players.PlayerRemoving:Connect(function(player)
         espPlayers[player].hpBackground:Remove()
         espPlayers[player].tracer:Remove()
         if espPlayers[player].chams then
-            for _, part in ipairs(espPlayers[player].chams) do
-                part:Destroy()
-            end
+            for _, part in ipairs(espPlayers[player].chams) do part:Destroy() end
         end
         espPlayers[player] = nil
     end
-end)
-
-local function updateSpeed()
-    if LocalPlayer.Character then
-        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            if speedHackEnabled then
-                humanoid.WalkSpeed = speedValue
-            else
-                humanoid.WalkSpeed = 16
-            end
-        end
-    end
-end
-
-speedHackConnection = RunService.Heartbeat:Connect(function()
-    if speedHackEnabled then updateSpeed() end
-end)
-
-LocalPlayer.CharacterAdded:Connect(function(character)
-    task.wait(0.1)
-    if speedHackEnabled then updateSpeed() end
 end)
 
 local function enableNoclip()
@@ -478,53 +502,158 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     end
 end)
 
-AimbotTab:CreateToggle({
-    Name = "🎯 Enable Aimbot",
+local function enableBunnyHop()
+    if bhopConnection then bhopConnection:Disconnect() end
+    bhopConnection = RunService.Heartbeat:Connect(function()
+        if not bunnyHopEnabled then return end
+        if not LocalPlayer.Character then return end
+        
+        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+        local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        
+        if not humanoid or not rootPart then return end
+        
+        local moveDirection = humanoid.MoveDirection
+        local isMoving = moveDirection.Magnitude > 0
+        
+        if not isMoving then
+            humanoid.WalkSpeed = 16
+            return
+        end
+        
+        if humanoid.WalkSpeed < 32 then
+            humanoid.WalkSpeed = 32
+        end
+        
+        local state = humanoid:GetState()
+        if state == Enum.HumanoidStateType.Running or state == Enum.HumanoidStateType.Landed then
+            humanoid.Jump = true
+        end
+    end)
+end
+
+local function disableBunnyHop()
+    if bhopConnection then
+        bhopConnection:Disconnect()
+        bhopConnection = nil
+    end
+    if LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = 16
+        end
+    end
+end
+
+RageTab:CreateToggle({
+    Name = "🎯 Enable Rage",
     CurrentValue = false,
     Callback = function(Value)
-        aimbotEnabled = Value
+        rageEnabled = Value
+        if Value then legitEnabled = false end
     end
 })
 
-AimbotTab:CreateToggle({
+RageTab:CreateToggle({
     Name = "💀 Auto Shot",
     CurrentValue = false,
     Callback = function(Value)
-        autoShotEnabled = Value
+        rageAutoShot = Value
     end
 })
 
-AimbotTab:CreateToggle({
+RageTab:CreateToggle({
     Name = "🧱 Wall Check",
     CurrentValue = true,
     Callback = function(Value)
-        wallCheckEnabled = Value
+        rageWallCheck = Value
     end
 })
 
-AimbotTab:CreateDropdown({
+RageTab:CreateDropdown({
     Name = "🎯 Aim Part",
     Options = {"Head", "HumanoidRootPart"},
     CurrentOption = "Head",
     Callback = function(Option)
-        aimPart = Option
+        rageAimPart = Option
     end
 })
 
-AimbotTab:CreateSlider({
+RageTab:CreateSlider({
     Name = "🔭 FOV",
     Range = {10, 360},
     Increment = 10,
     Suffix = "°",
     CurrentValue = 360,
     Callback = function(Value)
-        aimbotFOV = Value
+        rageFOV = Value
     end
 })
 
-AimbotTab:CreateParagraph({
+RageTab:CreateParagraph({
     Title = "Rage Features",
-    Content = "Aimbot + Auto Shot = aim and shoot\nOnly Aimbot = only aim"
+    Content = "FOV 360 = targets any visible enemy\nInstant aim + instant shot"
+})
+
+LegitTab:CreateToggle({
+    Name = "🔫 Enable Legit Bot",
+    CurrentValue = false,
+    Callback = function(Value)
+        legitEnabled = Value
+        if Value then rageEnabled = false end
+    end
+})
+
+LegitTab:CreateToggle({
+    Name = "💀 Auto Shot",
+    CurrentValue = false,
+    Callback = function(Value)
+        legitAutoShot = Value
+    end
+})
+
+LegitTab:CreateDropdown({
+    Name = "🎯 Aim Part",
+    Options = {"Head", "HumanoidRootPart"},
+    CurrentOption = "Head",
+    Callback = function(Option)
+        legitAimPart = Option
+    end
+})
+
+LegitTab:CreateSlider({
+    Name = "🔭 FOV",
+    Range = {10, 180},
+    Increment = 5,
+    Suffix = "°",
+    CurrentValue = 90,
+    Callback = function(Value)
+        legitFOV = Value
+    end
+})
+
+LegitTab:CreateToggle({
+    Name = "👁️ Show FOV",
+    CurrentValue = false,
+    Callback = function(Value)
+        showFOV = Value
+    end
+})
+
+LegitTab:CreateSlider({
+    Name = "🖱️ Smoothing",
+    Range = {1, 12},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 5,
+    Callback = function(Value)
+        legitSmoothing = Value
+    end
+})
+
+LegitTab:CreateParagraph({
+    Title = "Legit Bot Features",
+    Content = "Smooth aim with visible FOV circle\nWall Check always ON"
 })
 
 ESPTab:CreateToggle({
@@ -547,33 +676,25 @@ ESPTab:CreateToggle({
 ESPTab:CreateToggle({
     Name = "📦 Boxes",
     CurrentValue = false,
-    Callback = function(Value)
-        espBoxes = Value
-    end
+    Callback = function(Value) espBoxes = Value end
 })
 
 ESPTab:CreateToggle({
     Name = "📛 Name",
     CurrentValue = false,
-    Callback = function(Value)
-        espName = Value
-    end
+    Callback = function(Value) espName = Value end
 })
 
 ESPTab:CreateToggle({
     Name = "📏 Distance",
     CurrentValue = false,
-    Callback = function(Value)
-        espDistance = Value
-    end
+    Callback = function(Value) espDistance = Value end
 })
 
 ESPTab:CreateToggle({
     Name = "❤️ HP Bar",
     CurrentValue = false,
-    Callback = function(Value)
-        espHP = Value
-    end
+    Callback = function(Value) espHP = Value end
 })
 
 ESPTab:CreateToggle({
@@ -584,9 +705,7 @@ ESPTab:CreateToggle({
         if not Value then
             for player, espData in pairs(espPlayers) do
                 if espData.chams then
-                    for _, part in ipairs(espData.chams) do
-                        part:Destroy()
-                    end
+                    for _, part in ipairs(espData.chams) do part:Destroy() end
                     espData.chams = nil
                 end
             end
@@ -597,35 +716,12 @@ ESPTab:CreateToggle({
 ESPTab:CreateToggle({
     Name = "📍 Tracers",
     CurrentValue = false,
-    Callback = function(Value)
-        espTracers = Value
-    end
+    Callback = function(Value) espTracers = Value end
 })
 
 ESPTab:CreateParagraph({
     Title = "Silent Runners ESP",
     Content = "Boxes: Red = enemy, Green = ally\nName: Player name\nDistance: meters\nHP Bar: Green >50%, Yellow >25%, Red <25%\nChams: See enemies through walls\nTracers: Lines to enemies"
-})
-
-MiscTab:CreateToggle({
-    Name = "⚡ Speed Hack",
-    CurrentValue = false,
-    Callback = function(Value)
-        speedHackEnabled = Value
-        updateSpeed()
-    end
-})
-
-MiscTab:CreateSlider({
-    Name = "🏃 Speed Value",
-    Range = {20, 200},
-    Increment = 5,
-    Suffix = " studs/s",
-    CurrentValue = 50,
-    Callback = function(Value)
-        speedValue = Value
-        if speedHackEnabled then updateSpeed() end
-    end
 })
 
 MiscTab:CreateToggle({
@@ -637,9 +733,22 @@ MiscTab:CreateToggle({
     end
 })
 
+MiscTab:CreateToggle({
+    Name = "🐰 BunnyHop",
+    CurrentValue = false,
+    Callback = function(Value)
+        bunnyHopEnabled = Value
+        if Value then
+            enableBunnyHop()
+        else
+            disableBunnyHop()
+        end
+    end
+})
+
 MiscTab:CreateParagraph({
     Title = "Silent Runners MISC",
-    Content = "Speed Hack: Anti-cheat bypass\nSpeed: 20 to 200 studs/s\nNoClip: Walk through walls"
+    Content = "NoClip: Walk through walls\nBunnyHop: Auto jump + speed 32 studs/s when moving"
 })
 
 print("Silent Runners Rage Script: FPS One Tap - Loaded. Silent Runners Team 26.09.2025")
