@@ -48,6 +48,8 @@ local speedValue = 50
 local noclipEnabled = false
 local noclipConnection = nil
 local speedHackConnection = nil
+local godModeEnabled = false
+local godModeConnection = nil
 
 local function isTargetVisible(targetCharacter, targetPart)
     if not wallCheckEnabled then return true end
@@ -480,6 +482,54 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     end
 end)
 
+local function enableGodMode()
+    if godModeConnection then godModeConnection:Disconnect() end
+    godModeConnection = RunService.Stepped:Connect(function()
+        if godModeEnabled and LocalPlayer.Character then
+            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.Health = humanoid.MaxHealth
+                humanoid.MaxHealth = math.huge
+                humanoid.BreakJointsOnDeath = false
+                humanoid.RequiresNeck = false
+                humanoid.HipHeight = 0
+                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function disableGodMode()
+    if godModeConnection then
+        godModeConnection:Disconnect()
+        godModeConnection = nil
+    end
+    if LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.Health = 100
+            humanoid.MaxHealth = 100
+            humanoid.BreakJointsOnDeath = true
+            humanoid.RequiresNeck = true
+            humanoid.HipHeight = 2
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(character)
+    task.wait(0.1)
+    if godModeEnabled then enableGodMode() end
+end)
+
 AimbotTab:CreateToggle({
     Name = "🎯 Enable Aimbot",
     CurrentValue = false,
@@ -639,9 +689,22 @@ MiscTab:CreateToggle({
     end
 })
 
+MiscTab:CreateToggle({
+    Name = "🛡️ God Mode",
+    CurrentValue = false,
+    Callback = function(Value)
+        godModeEnabled = Value
+        if Value then
+            enableGodMode()
+        else
+            disableGodMode()
+        end
+    end
+})
+
 MiscTab:CreateParagraph({
     Title = "KUSTOM MISC",
-    Content = "Speed Hack: Anti-cheat bypass\nSpeed: 20 to 200 studs/s\nNoClip: Walk through walls"
+    Content = "Speed Hack: Anti-cheat bypass\nSpeed: 20 to 200 studs/s\nNoClip: Walk through walls\nGod Mode: Infinite health + no collision"
 })
 
 print("KUSTOM Rage Script: FPS One Tap - Loaded. Kustom 26.09.2025")
