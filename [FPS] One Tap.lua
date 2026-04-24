@@ -17,7 +17,7 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false
 })
 
-local AimbotTab = Window:CreateTab("🎯 Rage Aimbot", 4483362458)
+local AimbotTab = Window:CreateTab("🎯 Rage", 4483362458)
 local ESPTab = Window:CreateTab("👁️ ESP", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ MISC", 4483362458)
 
@@ -48,8 +48,6 @@ local speedValue = 50
 local noclipEnabled = false
 local noclipConnection = nil
 local speedHackConnection = nil
-local godModeEnabled = false
-local godModeConnection = nil
 
 local function isTargetVisible(targetCharacter, targetPart)
     if not wallCheckEnabled then return true end
@@ -157,8 +155,7 @@ local function createESPForPlayer(player)
         hpBar = Drawing.new("Line"),
         hpBackground = Drawing.new("Line"),
         tracer = Drawing.new("Line"),
-        chams = nil,
-        lastPosition = nil
+        chams = nil
     }
 
     espData.box.Visible = false
@@ -252,7 +249,6 @@ local function createESPForPlayer(player)
         end
 
         local position, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-        local headPosition, headOnScreen = Camera:WorldToViewportPoint(head.Position)
 
         if espEnabled then
             if espChams then
@@ -482,54 +478,6 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     end
 end)
 
-local function enableGodMode()
-    if godModeConnection then godModeConnection:Disconnect() end
-    godModeConnection = RunService.Stepped:Connect(function()
-        if godModeEnabled and LocalPlayer.Character then
-            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.Health = humanoid.MaxHealth
-                humanoid.MaxHealth = math.huge
-                humanoid.BreakJointsOnDeath = false
-                humanoid.RequiresNeck = false
-                humanoid.HipHeight = 0
-                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
-                end
-            end
-        end
-    end)
-end
-
-local function disableGodMode()
-    if godModeConnection then
-        godModeConnection:Disconnect()
-        godModeConnection = nil
-    end
-    if LocalPlayer.Character then
-        local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.Health = 100
-            humanoid.MaxHealth = 100
-            humanoid.BreakJointsOnDeath = true
-            humanoid.RequiresNeck = true
-            humanoid.HipHeight = 2
-            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-            end
-        end
-    end
-end
-
-LocalPlayer.CharacterAdded:Connect(function(character)
-    task.wait(0.1)
-    if godModeEnabled then enableGodMode() end
-end)
-
 AimbotTab:CreateToggle({
     Name = "🎯 Enable Aimbot",
     CurrentValue = false,
@@ -575,7 +523,7 @@ AimbotTab:CreateSlider({
 })
 
 AimbotTab:CreateParagraph({
-    Title = "⚙️ Rage Features",
+    Title = "Rage Features",
     Content = "Aimbot + Auto Shot = aim and shoot\nOnly Aimbot = only aim"
 })
 
@@ -689,22 +637,9 @@ MiscTab:CreateToggle({
     end
 })
 
-MiscTab:CreateToggle({
-    Name = "🛡️ God Mode",
-    CurrentValue = false,
-    Callback = function(Value)
-        godModeEnabled = Value
-        if Value then
-            enableGodMode()
-        else
-            disableGodMode()
-        end
-    end
-})
-
 MiscTab:CreateParagraph({
     Title = "Silent Runners MISC",
-    Content = "Speed Hack: Anti-cheat bypass\nSpeed: 20 to 200 studs/s\nNoClip: Walk through walls\nGod Mode: Infinite health + no collision"
+    Content = "Speed Hack: Anti-cheat bypass\nSpeed: 20 to 200 studs/s\nNoClip: Walk through walls"
 })
 
 print("Silent Runners Rage Script: FPS One Tap - Loaded. Silent Runners Team 26.09.2025")
