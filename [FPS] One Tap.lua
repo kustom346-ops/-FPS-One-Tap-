@@ -557,26 +557,20 @@ RageTab:CreateToggle({
 RageTab:CreateToggle({
     Name = "💀 Auto Shot",
     CurrentValue = false,
-    Callback = function(Value)
-        rageAutoShot = Value
-    end
+    Callback = function(Value) rageAutoShot = Value end
 })
 
 RageTab:CreateToggle({
     Name = "🧱 Wall Check",
     CurrentValue = true,
-    Callback = function(Value)
-        rageWallCheck = Value
-    end
+    Callback = function(Value) rageWallCheck = Value end
 })
 
 RageTab:CreateDropdown({
     Name = "🎯 Aim Part",
     Options = {"Head", "HumanoidRootPart"},
     CurrentOption = "Head",
-    Callback = function(Option)
-        rageAimPart = Option
-    end
+    Callback = function(Option) rageAimPart = Option end
 })
 
 RageTab:CreateSlider({
@@ -585,9 +579,7 @@ RageTab:CreateSlider({
     Increment = 10,
     Suffix = "°",
     CurrentValue = 360,
-    Callback = function(Value)
-        rageFOV = Value
-    end
+    Callback = function(Value) rageFOV = Value end
 })
 
 RageTab:CreateParagraph({
@@ -607,18 +599,14 @@ LegitTab:CreateToggle({
 LegitTab:CreateToggle({
     Name = "💀 Auto Shot",
     CurrentValue = false,
-    Callback = function(Value)
-        legitAutoShot = Value
-    end
+    Callback = function(Value) legitAutoShot = Value end
 })
 
 LegitTab:CreateDropdown({
     Name = "🎯 Aim Part",
     Options = {"Head", "HumanoidRootPart"},
     CurrentOption = "Head",
-    Callback = function(Option)
-        legitAimPart = Option
-    end
+    Callback = function(Option) legitAimPart = Option end
 })
 
 LegitTab:CreateSlider({
@@ -627,17 +615,13 @@ LegitTab:CreateSlider({
     Increment = 5,
     Suffix = "°",
     CurrentValue = 90,
-    Callback = function(Value)
-        legitFOV = Value
-    end
+    Callback = function(Value) legitFOV = Value end
 })
 
 LegitTab:CreateToggle({
     Name = "👁️ Show FOV",
     CurrentValue = false,
-    Callback = function(Value)
-        showFOV = Value
-    end
+    Callback = function(Value) showFOV = Value end
 })
 
 LegitTab:CreateSlider({
@@ -646,9 +630,7 @@ LegitTab:CreateSlider({
     Increment = 1,
     Suffix = "",
     CurrentValue = 5,
-    Callback = function(Value)
-        legitSmoothing = Value
-    end
+    Callback = function(Value) legitSmoothing = Value end
 })
 
 LegitTab:CreateParagraph({
@@ -663,9 +645,7 @@ ESPTab:CreateToggle({
         espEnabled = Value
         if Value then
             for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer then
-                    createESPForPlayer(player)
-                end
+                if player ~= LocalPlayer then createESPForPlayer(player) end
             end
         else
             clearAllESP()
@@ -673,29 +653,10 @@ ESPTab:CreateToggle({
     end
 })
 
-ESPTab:CreateToggle({
-    Name = "📦 Boxes",
-    CurrentValue = false,
-    Callback = function(Value) espBoxes = Value end
-})
-
-ESPTab:CreateToggle({
-    Name = "📛 Name",
-    CurrentValue = false,
-    Callback = function(Value) espName = Value end
-})
-
-ESPTab:CreateToggle({
-    Name = "📏 Distance",
-    CurrentValue = false,
-    Callback = function(Value) espDistance = Value end
-})
-
-ESPTab:CreateToggle({
-    Name = "❤️ HP Bar",
-    CurrentValue = false,
-    Callback = function(Value) espHP = Value end
-})
+ESPTab:CreateToggle({Name = "📦 Boxes", CurrentValue = false, Callback = function(Value) espBoxes = Value end})
+ESPTab:CreateToggle({Name = "📛 Name", CurrentValue = false, Callback = function(Value) espName = Value end})
+ESPTab:CreateToggle({Name = "📏 Distance", CurrentValue = false, Callback = function(Value) espDistance = Value end})
+ESPTab:CreateToggle({Name = "❤️ HP Bar", CurrentValue = false, Callback = function(Value) espHP = Value end})
 
 ESPTab:CreateToggle({
     Name = "🌈 Chams",
@@ -713,11 +674,7 @@ ESPTab:CreateToggle({
     end
 })
 
-ESPTab:CreateToggle({
-    Name = "📍 Tracers",
-    CurrentValue = false,
-    Callback = function(Value) espTracers = Value end
-})
+ESPTab:CreateToggle({Name = "📍 Tracers", CurrentValue = false, Callback = function(Value) espTracers = Value end})
 
 ESPTab:CreateParagraph({
     Title = "Silent Runners ESP",
@@ -738,11 +695,7 @@ MiscTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         bunnyHopEnabled = Value
-        if Value then
-            enableBunnyHop()
-        else
-            disableBunnyHop()
-        end
+        if Value then enableBunnyHop() else disableBunnyHop() end
     end
 })
 
