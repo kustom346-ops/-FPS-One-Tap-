@@ -64,6 +64,10 @@ local bunnyHopEnabled = false
 local bunnyHopSpeed = 48
 local bhopConnection = nil
 
+local hitboxExpanderEnabled = false
+local hitboxExpanderSize = 3
+local hitboxParts = {}
+
 local lastTarget = nil
 local targetSwitchTime = 0
 local mouseDown = false
@@ -286,6 +290,92 @@ local function fireShot()
     task.wait(0.01)
 end
 
+local function createHitboxPart(player)
+    if hitboxParts[player] then return end
+    if not player.Character then return end
+    
+    local character = player.Character
+    local bodyParts = getBodyParts(character)
+    
+    hitboxParts[player] = {}
+    
+    for _, originalPart in ipairs(bodyParts) do
+        local expander = Instance.new("Part")
+        expander.Name = "SilentRunnersExpander"
+        expander.Size = originalPart.Size * hitboxExpanderSize
+        expander.CFrame = originalPart.CFrame
+        expander.Transparency = 0.7
+        expander.CanCollide = true
+        expander.Anchored = false
+        expander.Massless = true
+        expander.BrickColor = BrickColor.new("Bright red")
+        expander.Material = Enum.Material.Neon
+        expander.Parent = character
+        
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = expander
+        weld.Part1 = originalPart
+        weld.Parent = expander
+        
+        table.insert(hitboxParts[player], {
+            expander = expander,
+            original = originalPart,
+            weld = weld
+        })
+    end
+end
+
+local function updateHitboxParts(player)
+    if not hitboxParts[player] then return end
+    
+    for _, data in ipairs(hitboxParts[player]) do
+        if data.expander and data.original then
+            data.expander.Size = data.original.Size * hitboxExpanderSize
+            data.expander.CFrame = data.original.CFrame
+        end
+    end
+end
+
+local function removeHitboxParts(player)
+    if not hitboxParts[player] then return end
+    
+    for _, data in ipairs(hitboxParts[player]) do
+        if data.expander then
+            data.expander:Destroy()
+        end
+    end
+    
+    hitboxParts[player] = nil
+end
+
+local function applyHitboxExpanderToAll()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            createHitboxPart(player)
+        end
+    end
+end
+
+local function removeAllHitboxExpanders()
+    for player, _ in pairs(hitboxParts) do
+        removeHitboxParts(player)
+    end
+    hitboxParts = {}
+end
+
+Players.PlayerAdded:Connect(function(player)
+    if hitboxExpanderEnabled and player ~= LocalPlayer then
+        player.CharacterAdded:Connect(function(character)
+            task.wait(0.1)
+            createHitboxPart(player)
+        end)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    removeHitboxParts(player)
+end)
+
 local autoShotTick = 0
 
 local function drawFOVCircle()
@@ -322,6 +412,12 @@ local function drawFOVCircle()
 end
 
 RunService.RenderStepped:Connect(function(deltaTime)
+    if hitboxExpanderEnabled then
+        for player, _ in pairs(hitboxParts) do
+            updateHitboxParts(player)
+        end
+    end
+    
     if triggerBotEnabled and isEnemyUnderCrosshair() then
         fireShot()
     end
@@ -932,9 +1028,33 @@ MiscTab:CreateSlider({
     Callback = function(Value) bunnyHopSpeed = Value end
 })
 
+MiscTab:CreateToggle({
+    Name = "📦 Hitbox Expander [BETTA]",
+    CurrentValue = false,
+    Callback = function(Value)
+        hitboxExpanderEnabled = Value
+        if Value then
+            applyHitboxExpanderToAll()
+        else
+            removeAllHitboxExpanders()
+        end
+    end
+})
+
+MiscTab:CreateSlider({
+    Name = "📏 Expander Size",
+    Range = {1.5, 5},
+    Increment = 0.5,
+    Suffix = "x",
+    CurrentValue = 3,
+    Callback = function(Value)
+        hitboxExpanderSize = Value
+    end
+})
+
 MiscTab:CreateParagraph({
     Title = "Silent Runners MISC",
-    Content = "NoClip: Walk through walls\nBunnyHop: Ultra speed bhop with air control"
+    Content = "NoClip: Walk through walls\nBunnyHop: Ultra speed bhop with air control\nHitbox Expander [BETTA]: Creates visible expanded hitboxes on enemies"
 })
 
 print("Silent Runners Script: FPS One Tap - Loaded. Silent Runners Team 26.09.2025")
