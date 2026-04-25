@@ -1,13 +1,13 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "Silent Runners | FPS One Tap Rage",
+    Name = "Silent Runners | FPS One Tap",
     LoadingTitle = "Silent Runners Injection",
     LoadingSubtitle = "by Silent Runners Team",
     ConfigurationSaving = {
        Enabled = true,
        FolderName = "SilentRunnersConfigs",
-       FileName = "FPSOneTapRage"
+       FileName = "FPSOneTap"
     },
     Discord = {
        Enabled = false,
@@ -704,4 +704,4 @@ MiscTab:CreateParagraph({
     Content = "NoClip: Walk through walls\nBunnyHop: Auto jump + speed 32 studs/s when moving"
 })
 
-print("Silent Runners Rage Script: FPS One Tap - Loaded. Silent Runners Team 26.09.2025")
+print("Silent Runners Script: FPS One Tap - Loaded. Silent Runners Team 26.09.2025")
