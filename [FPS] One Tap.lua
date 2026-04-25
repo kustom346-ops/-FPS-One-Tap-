@@ -32,9 +32,12 @@ local UserInputService = game:GetService("UserInputService")
 
 local rageEnabled = false
 local rageAutoShot = false
-local rageWallCheck = true
+local rageWallCheck = false
 local rageAimPart = "Head"
 local rageFOV = 360
+local ragePrediction = true
+local rageResolver = true
+local rageOnlyHead = true
 
 local legitEnabled = false
 local legitAutoShot = false
@@ -44,6 +47,7 @@ local legitSmoothing = 5
 local showFOV = false
 local fovCircle = nil
 local fovOutline = nil
+local triggerBotEnabled = false
 
 local espEnabled = false
 local espBoxes = false
@@ -57,9 +61,31 @@ local espPlayers = {}
 local noclipEnabled = false
 local noclipConnection = nil
 local bunnyHopEnabled = false
+local bunnyHopSpeed = 48
 local bhopConnection = nil
 
-local function isTargetVisible(targetCharacter, targetPart)
+local lastTarget = nil
+local targetSwitchTime = 0
+local mouseDown = false
+
+local function getBodyParts(character)
+    local parts = {}
+    if not character then return parts end
+    
+    for _, part in ipairs(character:GetChildren()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                table.insert(parts, part)
+            end
+        end
+    end
+    
+    return parts
+end
+
+local function isPartVisible(targetCharacter, targetPart)
+    if not rageWallCheck then return true end
     if not targetCharacter or not targetPart then return false end
     
     local cameraPos = Camera.CFrame.Position
@@ -91,9 +117,45 @@ local function isTargetVisible(targetCharacter, targetPart)
     return false
 end
 
-local function getNearestEnemy(aimPart, fov, checkWall, useFOV)
+local function getPredictedPosition(targetPart)
+    if not ragePrediction then return targetPart.Position end
+    
+    local velocity = targetPart.Velocity
+    local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
+    
+    local bulletTime = distance / 500
+    
+    local predictedPos = targetPart.Position + velocity * bulletTime
+    
+    return predictedPos
+end
+
+local function resolveTarget(targetPart)
+    if not rageResolver then return targetPart end
+    
+    local character = targetPart.Parent
+    if not character then return targetPart end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return targetPart end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if rootPart then
+        local rootPos = rootPart.Position
+        local headPos = targetPart.Position
+        
+        if headPos.Y < rootPos.Y - 1 then
+            return rootPart
+        end
+    end
+    
+    return targetPart
+end
+
+local function getNearestEnemy(aimPart, fov, checkWall, useFOV, onlyHead)
     local nearestEnemy = nil
     local nearestDistance = math.huge
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
@@ -105,33 +167,65 @@ local function getNearestEnemy(aimPart, fov, checkWall, useFOV)
         local humanoid = character:FindFirstChild("Humanoid")
         if not rootPart or not humanoid or humanoid.Health <= 0 then continue end
 
-        local targetPart = character:FindFirstChild(aimPart)
-        if not targetPart then continue end
-
-        local screenPosition, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-        if not onScreen then continue end
-
-        if useFOV and fov < 360 then
-            local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-            local screenPos2D = Vector2.new(screenPosition.X, screenPosition.Y)
-            local distanceFromCenter = (screenPos2D - screenCenter).Magnitude
-            local maxFOVDistance = (Camera.ViewportSize.Y / 2) * (fov / 90)
-
-            if distanceFromCenter > maxFOVDistance then continue end
+        local targetParts = {}
+        
+        if onlyHead then
+            local head = character:FindFirstChild(aimPart)
+            if not head then
+                head = character:FindFirstChild("Head")
+            end
+            if head then
+                head = resolveTarget(head)
+                table.insert(targetParts, head)
+            end
+        else
+            targetParts = getBodyParts(character)
         end
-
-        if checkWall and not isTargetVisible(character, targetPart) then continue end
-
-        local distance = (Camera.CFrame.Position - targetPart.Position).Magnitude
-
-        if distance < nearestDistance then
-            nearestDistance = distance
+        
+        if #targetParts == 0 then continue end
+        
+        local bestPart = nil
+        local bestPartDistance = math.huge
+        
+        for _, part in ipairs(targetParts) do
+            local predictedPos = getPredictedPosition(part)
+            
+            local screenPosition, onScreen = Camera:WorldToViewportPoint(predictedPos)
+            if not onScreen then continue end
+            
+            if useFOV and fov < 360 then
+                local screenPos2D = Vector2.new(screenPosition.X, screenPosition.Y)
+                local distanceFromCenter = (screenPos2D - screenCenter).Magnitude
+                local maxFOVDistance = (Camera.ViewportSize.Y / 2) * (fov / 90)
+                
+                if distanceFromCenter > maxFOVDistance then continue end
+            end
+            
+            if checkWall and not isPartVisible(character, part) then continue end
+            
+            local screenPos2D = Vector2.new(screenPosition.X, screenPosition.Y)
+            local crosshairDistance = (screenPos2D - screenCenter).Magnitude
+            
+            if crosshairDistance < bestPartDistance then
+                bestPartDistance = crosshairDistance
+                bestPart = {
+                    part = part,
+                    predictedPos = predictedPos,
+                    screenPosition = screenPosition,
+                    distance = (Camera.CFrame.Position - predictedPos).Magnitude
+                }
+            end
+        end
+        
+        if bestPart and bestPartDistance < nearestDistance then
+            nearestDistance = bestPartDistance
             nearestEnemy = {
                 player = player,
                 character = character,
-                targetPart = targetPart,
-                distance = distance,
-                screenPosition = screenPosition
+                targetPart = bestPart.part,
+                predictedPos = bestPart.predictedPos,
+                distance = bestPart.distance,
+                screenPosition = bestPart.screenPosition
             }
         end
     end
@@ -139,10 +233,60 @@ local function getNearestEnemy(aimPart, fov, checkWall, useFOV)
     return nearestEnemy
 end
 
-local function fireShot()
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+local function isEnemyUnderCrosshair()
+    local cameraPos = Camera.CFrame.Position
+    local cameraDir = Camera.CFrame.LookVector
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.IgnoreWater = true
+    
+    local ignoreList = {}
+    if LocalPlayer.Character then
+        table.insert(ignoreList, LocalPlayer.Character)
+    end
+    raycastParams.FilterDescendantsInstances = ignoreList
+    
+    local raycastResult = Workspace:Raycast(cameraPos, cameraDir * 500, raycastParams)
+    
+    if raycastResult then
+        local hitPart = raycastResult.Instance
+        local hitCharacter = hitPart.Parent
+        local hitPlayer = Players:GetPlayerFromCharacter(hitCharacter)
+        
+        if hitPlayer and hitPlayer ~= LocalPlayer then
+            local humanoid = hitCharacter:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                return true
+            end
+        end
+    end
+    
+    return false
 end
+
+local function pressMouse()
+    if not mouseDown then
+        mouseDown = true
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+    end
+end
+
+local function releaseMouse()
+    if mouseDown then
+        mouseDown = false
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+    end
+end
+
+local function fireShot()
+    pressMouse()
+    task.wait(0.05)
+    releaseMouse()
+    task.wait(0.01)
+end
+
+local autoShotTick = 0
 
 local function drawFOVCircle()
     if fovCircle then fovCircle:Remove() fovCircle = nil end
@@ -177,17 +321,42 @@ local function drawFOVCircle()
     fovCircle.ZIndex = 1
 end
 
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(deltaTime)
+    if triggerBotEnabled and isEnemyUnderCrosshair() then
+        fireShot()
+    end
+    
     if rageEnabled then
         local useFOV = rageFOV < 360
-        local enemy = getNearestEnemy(rageAimPart, rageFOV, rageWallCheck, useFOV)
+        local enemy = getNearestEnemy(rageAimPart, rageFOV, rageWallCheck, useFOV, rageOnlyHead)
+        
         if enemy then
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.targetPart.Position)
-            if rageAutoShot then fireShot() end
+            if lastTarget and lastTarget.player ~= enemy.player then
+                local now = tick()
+                if now - targetSwitchTime > 0.05 then
+                    targetSwitchTime = now
+                    lastTarget = enemy
+                end
+            else
+                lastTarget = enemy
+            end
+            
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, enemy.predictedPos)
+            
+            if rageAutoShot then
+                autoShotTick = autoShotTick + deltaTime
+                if autoShotTick >= 0.08 then
+                    autoShotTick = 0
+                    fireShot()
+                end
+            end
+        else
+            lastTarget = nil
+            releaseMouse()
         end
     elseif legitEnabled then
         local useFOV = legitFOV < 360
-        local enemy = getNearestEnemy(legitAimPart, legitFOV, true, useFOV)
+        local enemy = getNearestEnemy(legitAimPart, legitFOV, true, useFOV, true)
         if enemy then
             local targetPos = enemy.targetPart.Position
             local smoothFactor = math.min(legitSmoothing / 10, 1)
@@ -198,7 +367,13 @@ RunService.RenderStepped:Connect(function()
                 local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
                 local screenPos2D = Vector2.new(enemy.screenPosition.X, enemy.screenPosition.Y)
                 local distanceFromCenter = (screenPos2D - screenCenter).Magnitude
-                if distanceFromCenter < 10 then fireShot() end
+                if distanceFromCenter < 10 then
+                    autoShotTick = autoShotTick + deltaTime
+                    if autoShotTick >= 0.1 then
+                        autoShotTick = 0
+                        fireShot()
+                    end
+                end
             end
         end
     end
@@ -521,13 +696,33 @@ local function enableBunnyHop()
             return
         end
         
-        if humanoid.WalkSpeed < 32 then
-            humanoid.WalkSpeed = 32
-        end
+        humanoid.WalkSpeed = bunnyHopSpeed
         
         local state = humanoid:GetState()
-        if state == Enum.HumanoidStateType.Running or state == Enum.HumanoidStateType.Landed then
+        
+        if state == Enum.HumanoidStateType.Freefall then
+            local velocity = rootPart.Velocity
+            local horizontalSpeed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+            
+            if horizontalSpeed < bunnyHopSpeed then
+                local moveDir = humanoid.MoveDirection
+                if moveDir.Magnitude > 0 then
+                    rootPart.Velocity = Vector3.new(
+                        moveDir.X * bunnyHopSpeed,
+                        velocity.Y,
+                        moveDir.Z * bunnyHopSpeed
+                    )
+                end
+            end
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                local jumpPower = 50 + (bunnyHopSpeed - 16) * 0.8
+                humanoid.JumpPower = jumpPower
+                humanoid.Jump = true
+            end
+        elseif state == Enum.HumanoidStateType.Running or state == Enum.HumanoidStateType.Landed then
             humanoid.Jump = true
+            humanoid.JumpPower = 50 + (bunnyHopSpeed - 16) * 0.8
         end
     end)
 end
@@ -541,6 +736,7 @@ local function disableBunnyHop()
         local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
         if humanoid then
             humanoid.WalkSpeed = 16
+            humanoid.JumpPower = 50
         end
     end
 end
@@ -551,19 +747,41 @@ RageTab:CreateToggle({
     Callback = function(Value)
         rageEnabled = Value
         if Value then legitEnabled = false end
+        if not Value then releaseMouse() end
     end
 })
 
 RageTab:CreateToggle({
     Name = "💀 Auto Shot",
     CurrentValue = false,
-    Callback = function(Value) rageAutoShot = Value end
+    Callback = function(Value) 
+        rageAutoShot = Value
+        if not Value then releaseMouse() end
+    end
 })
 
 RageTab:CreateToggle({
     Name = "🧱 Wall Check",
-    CurrentValue = true,
+    CurrentValue = false,
     Callback = function(Value) rageWallCheck = Value end
+})
+
+RageTab:CreateToggle({
+    Name = "🔮 Prediction",
+    CurrentValue = true,
+    Callback = function(Value) ragePrediction = Value end
+})
+
+RageTab:CreateToggle({
+    Name = "🛡️ Anti-Aim Resolver",
+    CurrentValue = true,
+    Callback = function(Value) rageResolver = Value end
+})
+
+RageTab:CreateToggle({
+    Name = "👤 ONLY HEAD",
+    CurrentValue = true,
+    Callback = function(Value) rageOnlyHead = Value end
 })
 
 RageTab:CreateDropdown({
@@ -583,8 +801,8 @@ RageTab:CreateSlider({
 })
 
 RageTab:CreateParagraph({
-    Title = "Rage Features",
-    Content = "FOV 360 = targets any visible enemy\nInstant aim + instant shot"
+    Title = "Rage HvH Features",
+    Content = "ONLY HEAD ON = Aimbot locks onto head only\nONLY HEAD OFF = Aimbot shoots any visible body part\nAuto Shot: 80ms hold time\nPrediction: Velocity-based aim compensation\nResolver: Bypasses enemy Anti-Aim"
 })
 
 LegitTab:CreateToggle({
@@ -600,6 +818,12 @@ LegitTab:CreateToggle({
     Name = "💀 Auto Shot",
     CurrentValue = false,
     Callback = function(Value) legitAutoShot = Value end
+})
+
+LegitTab:CreateToggle({
+    Name = "🎯 Trigger Bot",
+    CurrentValue = false,
+    Callback = function(Value) triggerBotEnabled = Value end
 })
 
 LegitTab:CreateDropdown({
@@ -635,7 +859,7 @@ LegitTab:CreateSlider({
 
 LegitTab:CreateParagraph({
     Title = "Legit Bot Features",
-    Content = "Smooth aim with visible FOV circle\nWall Check always ON"
+    Content = "Smooth aim with visible FOV circle\nWall Check always ON\nTrigger Bot: Auto shoots when crosshair on enemy"
 })
 
 ESPTab:CreateToggle({
@@ -699,9 +923,18 @@ MiscTab:CreateToggle({
     end
 })
 
+MiscTab:CreateSlider({
+    Name = "🏃 BHop Speed",
+    Range = {32, 100},
+    Increment = 2,
+    Suffix = " studs/s",
+    CurrentValue = 48,
+    Callback = function(Value) bunnyHopSpeed = Value end
+})
+
 MiscTab:CreateParagraph({
     Title = "Silent Runners MISC",
-    Content = "NoClip: Walk through walls\nBunnyHop: Auto jump + speed 32 studs/s when moving"
+    Content = "NoClip: Walk through walls\nBunnyHop: Ultra speed bhop with air control"
 })
 
 print("Silent Runners Script: FPS One Tap - Loaded. Silent Runners Team 26.09.2025")
